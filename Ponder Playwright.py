@@ -10,7 +10,6 @@ import cv2
 import numpy as np
 import matplotlib
 from matplotlib import pyplot as plt
-import pandas as pd
 import os
 from collections import Counter
 
