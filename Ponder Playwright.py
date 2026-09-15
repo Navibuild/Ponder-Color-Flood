@@ -12,6 +12,7 @@ import matplotlib
 from matplotlib import pyplot as plt
 import os
 from collections import Counter
+from collections import deque
 
 #Color Match iniialize:
 COLORS = {
@@ -29,12 +30,15 @@ rows = 10
 cols = 10
 default_string = ""
 cols_array = [[default_string for _ in range(cols)] for _ in range(rows)]
-chain_arr = [[0,0]]
+chain_arr = [(0,0)]
 freq_color = ""
 move_count = 0
 
 #Main:
 os.chdir('C:\\Users\\arnav\\OneDrive\\Desktop\\Projects\\Ponder Color Flood')
+
+#Playwright inspector:
+#python -m playwright codegen https://www.ponderclub.co/color-flood
 
 #Initializing the page for the screenshot:
 with sync_playwright() as p:
@@ -42,7 +46,7 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"height":1080, "width": 1720})
     page.goto("https://www.ponderclub.co/color-flood")
     sleep(0.5)
-    #how_to_button = page.locator(".framer-p402s9")
+    page.get_by_role("button", name="Close").click()
 
     #Positional debugging to find the bounding box of the How to play button
     #htb_size = how_to_button.bounding_box()
@@ -51,7 +55,7 @@ with sync_playwright() as p:
     #print (height)
     #print(width)
 
-    #how_to_button.click(position={"x": 592, "y": 500})
+    #how_to_button.click()
     sleep(0.5)
     #how_to_button.click(position={"x": 200, "y": 200})
 
@@ -117,35 +121,12 @@ def grid_to_array(path="color_grid.png", rows=10, cols=10):
         grid.append(row)
     return grid
 
-#Returning list of adjacent cells to the single cell only up down left right:
-def adjacency(a,b):
-    adj_cells = []
-    try:
-        adj_cells.append([a-1,b])
-    except:
-        pass
-    try:
-        adj_cells.append([a,b-1])
-    except:
-        pass
-    try:
-        if(a+1) <= 9:
-            adj_cells.append([a+1,b])
-    except:
-        pass
-    try:
-        if(b+1) <= 9:
-            adj_cells.append([a,b+1])
-    except:
-        pass
-    return (adj_cells)
-
 #Check if adjacent cells have the same color and if so adding the coordinates to the chain arr:
 def adj_color_chain(array):
     for i in range(len(array)):
         if((cols_array[int((array[i])[0])][int((array[i])[1])]) == cols_array[0][0]):
-            if((([(array[i])[0],(array[i])[1]]) not in chain_arr) and (0 <= (array[i])[0] < len(cols_array)) and (0 <= (array[i])[1] < len(cols_array))):
-                chain_arr.append([(array[i])[0],(array[i])[1]])
+            if((((array[i][0],array[i][1])) not in chain_arr) and (0 <= (array[i])[0] < len(cols_array)) and (0 <= (array[i])[1] < len(cols_array))):
+                chain_arr.append((array[i][0],array[i][1]))
                 #print(chain_arr)
 
 #Forms the chain of similar colors
@@ -203,6 +184,7 @@ def highest_freq_color(array):
 #Code to replace all cells being refered by chain_arr to the color outputted by popular_color()
 def color_shift():
     global freq_color
+    print(freq_color)
     freq_color = popular_color()[1]
     for item in (chain_arr):
         cols_array[item[0]][item[1]] = freq_color
@@ -228,13 +210,92 @@ def chain_theory():
         move_count +=1
     print("Total moves used for popular chain algorithm: " + str(move_count))
 
+#New adjacency check for region conversion
+def adjacency(a, b, rows=10, cols=10):
+    candidates = [(a-1, b), (a+1, b), (a, b-1), (a, b+1)]
+    return [(r, c) for r, c in candidates if 0 <= r < rows and 0 <= c < cols]
+
+def find_regions(grid):
+    """
+    Collapse a 2D grid of colors into connected regions.
+
+    grid: list of lists, grid[row][col] = color string
+
+    Returns: list of dicts, each {'color': str, 'cells': set of (row, col)}
+    """
+    rows, cols = len(grid), len(grid[0])
+    visited = set()
+    regions = []
+    search_list = deque()
+
+    for r in range(rows):
+        for c in range(cols):
+            if (r, c) in visited:
+                continue
+            else:
+                tempset = set()
+                visited.add((r,c))
+                search_list.append((r,c))
+                tempset.add((r,c))
+                while search_list:
+                    current = search_list.popleft()
+                    for x in adjacency(current[0],current[1]):
+                        if x not in visited:
+                            if (grid[current[0]][current[1]] == grid[x[0]][x[1]]):
+                                tempset.add((x[0],x[1]))
+                                visited.add((x[0],x[1]))
+                                search_list.append((x[0],x[1]))
+                regions.append({'color': grid[r][c], 'cells': tempset})
+            # TODO: BFS/DFS flood-fill from (r, c), collecting every
+            # same-colored cell reachable via up/down/left/right moves.
+            # Mark each visited cell in `visited` as you go so the
+            # outer loop skips it later.
+            # Then append {'color': grid[r][c], 'cells': <the set you built>}
+            # to `regions`.
+            pass
+
+    return regions
+
+def build_region_graph(regions):
+    """
+    Given a list of regions (from find_regions), determine which
+    regions are adjacent to each other.
+
+    Returns: dict mapping region_index -> set of neighboring region_indices
+    """
+    # TODO 1: build a lookup, cell -> which region index it belongs to
+    cell_to_region = {}
+    # ... fill this in by looping over `regions` with enumerate()
+
+    graph = {i: set() for i in range(len(regions))}
+
+    # TODO 2: for each region, for each cell in it, check adjacent cells;
+    # if an adjacent cell belongs to a DIFFERENT region index, record
+    # an edge both ways (graph[i].add(j) and graph[j].add(i))
+
+    return graph
+
+def test_regions():
+    grid = grid_to_array()
+    regions = find_regions(grid)
+    print(f"Board collapsed into {len(regions)} regions")
+    total_cells = sum(len(r['cells']) for r in regions)
+    print(f"Total cells across all regions: {total_cells} (should be 100)")
+    for r in regions[:5]:
+        print(r['color'], len(r['cells']), "cells")
+
+
 #A* algorithm
 def a_star():
     pass
 
 
 def main():
-    chain_theory()
+    #chain_theory()
+    #test_regions()
+    pass
+    
+
 main()
 
 
