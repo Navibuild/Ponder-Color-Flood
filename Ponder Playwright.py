@@ -48,7 +48,7 @@ with sync_playwright() as p:
     sleep(0.5)
     page.get_by_role("button", name="Close").click()
 
-    #Positional debugging to find the bounding box of the How to play button
+    #OLD Positional debugging to find the bounding box of the How to play button
     #htb_size = how_to_button.bounding_box()
     #height = htb_size['height']
     #width = htb_size["width"]
@@ -72,7 +72,7 @@ height = dimensions[0]
 width = dimensions[1]
 
 #Editing the image down to size: i no longer need to crop the image down as the cssSelector for this exact class is availaible
-#and isnt hidden
+#isnt hidden
 #cropped_img = image[168:(height-113),400:(width-400)]
 
 #cv2.imwrite('cropped_grid.png',cropped_img)
@@ -204,25 +204,27 @@ def check(two_d_list):
 #Attempting to solve the flood it game using chain theory to choose the most populat color adjacent to the current chain of same color
 def chain_theory():
     cols_array[:] = grid_to_array()
-    global move_count
+    global move_count, chain_arr
+
+    chain_arr = [(0, 0)]
+    move_count = 0
+    move_sequence = []
+
     while not (check(cols_array)):
         color_shift()
-        move_count +=1
+        move_sequence.append(freq_color)
+        move_count += 1
+
     print("Total moves used for popular chain algorithm: " + str(move_count))
+    return move_sequence
 
 #New adjacency check for region conversion
 def adjacency(a, b, rows=10, cols=10):
     candidates = [(a-1, b), (a+1, b), (a, b-1), (a, b+1)]
     return [(r, c) for r, c in candidates if 0 <= r < rows and 0 <= c < cols]
 
+#Collapses a 2D grid of colors into connected regions.
 def find_regions(grid):
-    """
-    Collapse a 2D grid of colors into connected regions.
-
-    grid: list of lists, grid[row][col] = color string
-
-    Returns: dict mapping region_index -> {'color': str, 'cells': set of (row, col)}
-    """
     rows, cols = len(grid), len(grid[0])
     visited = set()
     regions = {}
@@ -251,14 +253,8 @@ def find_regions(grid):
             next_index += 1
 
     return regions
-
+#Given a list of regions (from find_regions), determines which regions are adjacent to each other.
 def build_region_graph(regions):
-    """
-    Given a list of regions (from find_regions), determine which
-    regions are adjacent to each other.
-
-    Returns: dict mapping region_index -> set of neighboring region_indices
-    """
     cell_to_region = {}
     for i, region in regions.items():
         for cell in region['cells']:
@@ -276,14 +272,10 @@ def build_region_graph(regions):
 
     return graph
 
-def bfs_distances(graph, start):
-    """
-    Given a region graph and a starting region index, compute the
-    shortest-path distance (in hops) from `start` to every other
-    reachable region.
+#Given a region graph and a starting region index, this function computes the
+#shortest-path distance (in hops) from `start` to every other reachable region.
 
-    Returns: dict mapping region_index -> distance (number of hops from start)
-    """
+def bfs_distances(graph, start):
     distances = {start: 0}
     queue = deque([start])
 
@@ -299,18 +291,13 @@ def bfs_distances(graph, start):
 def heuristic(graph):
     return max(bfs_distances(graph, 0).values())
 
+#Simulates choosing `color` as the next move. Merges every region directly adjacent to `root` 
+#that has color `color` into `root`. graph: dict, region_index -> set of neighboring region_indices
+
+#regions: dict, region_index -> {'color': str, 'cells': set}
+#root: int, the region index currently representing the captured blob
+#color: str, the color being chosen for this move
 def make_move(graph, regions, root, color):
-    """
-    Simulate choosing `color` as the next move. Merges every region
-    directly adjacent to `root` that has color `color` into `root`.
-
-    graph: dict, region_index -> set of neighboring region_indices
-    regions: dict, region_index -> {'color': str, 'cells': set}
-    root: int, the region index currently representing the captured blob
-    color: str, the color being chosen for this move
-
-    Returns: (new_graph, new_regions) — fresh copies, inputs untouched.
-    """
     to_absorb = set()
     for i in graph[root]:
         if regions[i]['color'] == color:
@@ -341,14 +328,10 @@ def make_move(graph, regions, root, color):
 
 FOUND = "FOUND"  # sentinel value, distinct from any number
 
+#threshold: current IDA* cost limit
+#Returns FOUND if solved within threshold, otherwise returns the smallest
+#f-value that exceeded threshold (for the outer loop to use next).
 def ida_search(graph, regions, root, g, threshold, path):
-    """
-    g: moves made so far to reach this state
-    threshold: current IDA* cost limit
-
-    Returns FOUND if solved within threshold, otherwise the smallest
-    f-value that exceeded threshold (for the outer loop to use next).
-    """
     f = g + heuristic(graph)
     if f > threshold:
         return f
@@ -396,7 +379,8 @@ def solve_pipeline_check():
     return graph, regions
 
 def test_regions():
-    """
+    
+    #OLDER TESTING 
     grid = grid_to_array()
     regions = find_regions(grid)
     print(f"Board collapsed into {len(regions)} regions")
@@ -417,8 +401,7 @@ def test_regions():
     print("Regions before:", len(regions), "-> after:", len(new_regions))
     print("Root's cell count before:", len(regions[0]['cells']), "-> after:", len(new_regions[0]['cells']))
     print("Original untouched? root cells still:", len(regions[0]['cells']))
-    """
-
+    
     grid = grid_to_array()
     regions = find_regions(grid)
     graph = build_region_graph(regions)
@@ -428,26 +411,25 @@ def test_regions():
     print(f"Move sequence: {move_sequence}")
 
 def solver(method):
-    if (method == "a*"):
+    if (method == "IDA*"):
         grid = grid_to_array()
         regions = find_regions(grid)
         graph = build_region_graph(regions)
-    
+
         optimal, move_sequence = ida_star(graph, regions)
         print(f"Optimal move count: {optimal}")
         print(f"Move sequence: {move_sequence}")
-    elif(method == "greedy"):
-        chain_theory()
+    elif (method == "Greedy"):
+        move_sequence = chain_theory()
+        print(f"Move sequence: {move_sequence}")
 
 
 def main():
-    solver("a*")
+    solver("Greedy")
+    solver("IDA*")
     
 
 main()
 
-
-#Brute force to find the optimal solution. Optimized however to prevent using colors that cannot be accessed.
 #Prime box is top left since this is where it starts
 
-#Conway game of life
