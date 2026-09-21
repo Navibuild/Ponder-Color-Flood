@@ -8,10 +8,11 @@ Parses the image: OpenCV samples each cell and matches it against the known pale
 Solves the daily game: starting from the top-left cell, a greedy heuristic repeatedly grows the captured region by choosing the most popular color among the currently adjacent cells until the whole board is one color.
 
 Current algorithms available:
-chain_theory():  greedy, chooses the most frequent adjacent color at each step. Fast, but not guaranteed optimal.
+solver("Greedy"): Greedy, chooses the most frequent adjacent color at each step. Fast, but not guaranteed optimal.
+solver("IDA*"): IDA* or Iterative Deepening A* over a region graph, using shortest-path-to-farthest-region to find the true optimal move count.
 
 Upcoming algorithms:
-a_star(): IDA* or Iterative Deepening A* over a region graph, using shortest-path-to-farthest-region to hopefully find true optimal move count, then benchmarking the greedy heuristic and future solvers against it.
+Beam search, plain A*, and MCTS
 
 Requirements:
 pip install -r requirements.txt
@@ -21,4 +22,4 @@ Usage:
 python solver.py in Visual Studio Code
 
 Status:
-Personal project, actively evolving. Next steps: region-graph representation, exact solver, and a comparison of moves-used and runtime across algorithms.
+Personal project, actively evolving. Next steps: Comparing different algorithms against each other for time vs accuracy.
